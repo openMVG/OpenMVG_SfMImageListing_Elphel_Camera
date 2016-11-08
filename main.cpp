@@ -34,10 +34,12 @@ int main(int argc, char **argv)
   std::string 
     sImageDir = "",
     sElphelCalibrationKeyFile = "",
+    sChannelToKeep="", // empty here means that it keeps all the camera
     sOutputDir = "";
 
   cmd.add( make_option('i', sImageDir, "imageDirectory") );
   cmd.add( make_option('k', sElphelCalibrationKeyFile, "keyfile") );
+  cmd.add( make_option('c', sChannelToKeep, "channelToKeep") );
   cmd.add( make_option('o', sOutputDir, "outputDirectory") );
 
   try {
@@ -48,6 +50,7 @@ int main(int argc, char **argv)
       << "Usage: " << argv[0] << '\n'
       << "[-i|--imageDirectory] input image directory\n"
       << "[-k|--keyfile] input Elphel camera calibration data i.e. calibration.key\n"
+      << "[-c|--channelToKeep] channel that are considered for the initialization. i.e \"1;2;3\"\n"
       << "[-o|--outputDirectory] path where the sfm_data.json file will be saved\n"
       << std::endl;
 
@@ -68,7 +71,42 @@ int main(int argc, char **argv)
       return EXIT_FAILURE;
     }
   }
-
+  
+  // Analyse the channel string in order to transform them in a sensor id set
+  std::set<openMVG::IndexT> channel_to_keep;
+  if (!sChannelToKeep.empty())
+  {
+    std::vector<std::string> channel_to_keep_str;
+    if (stl::split(sChannelToKeep, ';', channel_to_keep_str))
+    {
+      std::for_each(
+        std::begin(channel_to_keep_str),
+        std::end(channel_to_keep_str),
+        [&channel_to_keep](const auto & val)
+        {
+          if (val.empty()) // in order to handle input like ";" or ";;;"
+            return;
+          openMVG::IndexT temp = 0;
+          std::stringstream os(val);
+          os >> temp;
+          channel_to_keep.insert(temp);
+        }
+      );
+    }
+    if (channel_to_keep.empty())
+    {
+      std::cerr << "Invalid input for selecting the camera channel you want to keep" << std::endl;
+    }
+    else
+    {
+      std::cout << "Kept channel ID list: ";
+      for (const auto val : channel_to_keep)
+      {
+        std::cout << val << " ";
+      }
+      std::cout << std::endl;
+    }
+  }
 
   // Extract Elphel camera calibration for each module
   std::vector < sensorData > vec_sensorData;
@@ -112,6 +150,11 @@ int main(int argc, char **argv)
       stl::split( image_it, '-', splitted_name );
 
       const openMVG::IndexT sensor_index = atoi(splitted_name[1].c_str());
+
+      // Check if this sensor channel is kept or not by the user
+      if (!sChannelToKeep.empty() && channel_to_keep.count(sensor_index) == 0)
+        continue;
+
       const std::string timestamp = splitted_name[0]; // UID of the pose
       set_existing_timestamp.insert(timestamp);
 
