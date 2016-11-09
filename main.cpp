@@ -82,7 +82,7 @@ int main(int argc, char **argv)
       std::for_each(
         std::begin(channel_to_keep_str),
         std::end(channel_to_keep_str),
-        [&channel_to_keep](const auto & val)
+        [&channel_to_keep](const std::string & val)
         {
           if (val.empty()) // in order to handle input like ";" or ";;;"
             return;
